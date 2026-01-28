@@ -1,0 +1,2 @@
+public_qid,org_code2,subject_code2,year,month,number,unit,qtype,correct_rate,pdf_url,page_no,bbox_x,bbox_y,bbox_w,bbox_h,raw_text
+202401010001,MO,MA,2024,11,1,수열,객관식,72.5,https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf,3,0.12,0.24,0.45,0.18,"예시 지문 텍스트 입니다. 토큰화만 수행합니다."
