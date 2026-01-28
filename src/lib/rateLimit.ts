@@ -1,5 +1,6 @@
-import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+import { error } from "./apiResponse";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -12,19 +13,12 @@ const ratelimit = redis
     })
   : null;
 
-function jsonResponse(message: string, status: number) {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
 export async function enforceRateLimit(request: Request): Promise<Response | null> {
   if (!ratelimit) {
     if (process.env.NODE_ENV !== "production") {
       return null;
     }
-    return jsonResponse("Missing rate limit env", 500);
+    return error(500, "Missing rate limit env", "INTERNAL_ERROR");
   }
 
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -33,7 +27,7 @@ export async function enforceRateLimit(request: Request): Promise<Response | nul
 
   const result = await ratelimit.limit(key);
   if (!result.success) {
-    return jsonResponse("Too many requests", 429);
+    return error(429, "Too many requests", "RATE_LIMITED");
   }
 
   return null;

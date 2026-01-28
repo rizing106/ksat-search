@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { searchQuestions } from "../../../lib/searchQuestions";
+import { error as errorResponse, json } from "../../../lib/apiResponse";
 import { enforceRateLimit } from "../../../lib/rateLimit";
 import type { QuestionSearchFilters, SearchQuestionsParams } from "../../../types/db";
 
@@ -118,15 +118,17 @@ export async function GET(request: Request) {
     };
 
     const result = await searchQuestions(params);
-    return NextResponse.json({
+    return json({
       items: result.items,
       page: result.page,
       pageSize: result.pageSize,
       total: result.total,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid parameters";
-    const status = error instanceof ValidationError ? error.status : 500;
-    return NextResponse.json({ error: message }, { status });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid parameters";
+    if (err instanceof ValidationError) {
+      return errorResponse(400, message, "BAD_REQUEST");
+    }
+    return errorResponse(500, message, "INTERNAL_ERROR");
   }
 }

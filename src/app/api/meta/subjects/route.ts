@@ -1,18 +1,23 @@
-import { NextResponse } from "next/server";
 import { supabase } from "../../../../lib/supabaseClient";
 import { enforceRateLimit } from "../../../../lib/rateLimit";
+import { error, json } from "../../../../lib/apiResponse";
 
 export async function GET(request: Request) {
   const rateLimitResponse = await enforceRateLimit(request);
   if (rateLimitResponse) return rateLimitResponse;
-  const { data, error } = await supabase
-    .from("subjects")
-    .select("code2,name")
-    .order("code2", { ascending: true });
+  try {
+    const { data, error: queryError } = await supabase
+      .from("subjects")
+      .select("code2,name")
+      .order("code2", { ascending: true });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (queryError) {
+      return error(500, queryError.message, "INTERNAL_ERROR");
+    }
+
+    return json({ items: data ?? [] });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    return error(500, message, "INTERNAL_ERROR");
   }
-
-  return NextResponse.json({ items: data ?? [] });
 }
