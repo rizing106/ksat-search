@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabase } from "../../../../lib/supabaseClient";
+import { enforceRateLimit } from "../../../../lib/rateLimit";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ public_qid: string }> },
 ) {
+  const rateLimitResponse = await enforceRateLimit(request);
+  if (rateLimitResponse) return rateLimitResponse;
   const { public_qid } = await params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").filter(Boolean).pop();

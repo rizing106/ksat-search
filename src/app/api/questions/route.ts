@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchQuestions } from "../../../lib/searchQuestions";
+import { enforceRateLimit } from "../../../lib/rateLimit";
 import type { QuestionSearchFilters, SearchQuestionsParams } from "../../../types/db";
 
 const DIFFICULTY_5_VALUES = [
@@ -35,6 +36,8 @@ function sanitizeQuery(value: string): string {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const rateLimitResponse = await enforceRateLimit(request);
+  if (rateLimitResponse) return rateLimitResponse;
   try {
     const rawQ = searchParams.get("q");
     let q: string | undefined;
