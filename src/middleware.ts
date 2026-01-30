@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data } = await supabase.auth.getUser();
-  const adminEmails = parseAdminEmails(env.ADMIN_EMAILS);
+  const adminEmails = parseAdminEmails(env.ADMIN_EMAILS ?? "");
 
   const userEmail = data.user?.email?.toLowerCase();
   const isAdmin = !!userEmail && adminEmails.includes(userEmail);
