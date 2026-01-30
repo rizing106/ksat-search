@@ -11,7 +11,10 @@ function parseAdminEmails(value?: string) {
 }
 
 function redirectLogin(request: NextRequest, response: NextResponse) {
-  const redirect = NextResponse.redirect(new URL("/login", request.url));
+  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("next", nextPath);
+  const redirect = NextResponse.redirect(loginUrl);
   const cookies = response.cookies.getAll();
   cookies.forEach((cookie) => redirect.cookies.set(cookie));
   return redirect;
