@@ -10,8 +10,8 @@ function parseAdminEmails(value?: string) {
     .filter(Boolean);
 }
 
-function redirectHome(request: NextRequest, response: NextResponse) {
-  const redirect = NextResponse.redirect(new URL("/", request.url));
+function redirectLogin(request: NextRequest, response: NextResponse) {
+  const redirect = NextResponse.redirect(new URL("/login", request.url));
   const cookies = response.cookies.getAll();
   cookies.forEach((cookie) => redirect.cookies.set(cookie));
   return redirect;
@@ -43,7 +43,7 @@ export async function middleware(request: NextRequest) {
   const isAdmin = !!userEmail && adminEmails.includes(userEmail);
 
   if (!isAdmin) {
-    return redirectHome(request, response);
+    return redirectLogin(request, response);
   }
 
   return response;

@@ -6,6 +6,9 @@ export default function AdminHomePage() {
       <a className="text-blue-600 hover:underline" href="/admin/bbox">
         /admin/bbox
       </a>
+      <a className="text-sm text-gray-500 hover:underline" href="/logout">
+        로그아웃
+      </a>
     </main>
   );
 }
