@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { parse } from "csv-parse/sync";
-import { supabase } from "../src/lib/supabaseClient";
+import { supabaseAdmin } from "./supabaseAdmin";
 import { tokenizeQuery } from "../src/lib/tokenize";
 
 type Options = {
@@ -113,7 +113,7 @@ function parseArgs(argv: string[]): Options {
 
 async function assertDbConnection() {
   try {
-    const { error } = await supabase.from("organizations").select("code2").limit(1);
+    const { error } = await supabaseAdmin.from("organizations").select("code2").limit(1);
     if (error) {
       throw new Error(error.message);
     }
@@ -284,7 +284,7 @@ async function run() {
       const batchRows = prepared.slice(i, i + options.batch);
       const payload = batchRows.map((row) => row.payload);
 
-      const { error } = await supabase.rpc("import_questions_batch", { rows: payload });
+      const { error } = await supabaseAdmin.rpc("import_questions_batch", { rows: payload });
       if (error) {
         failedCount += batchRows.length;
         const match = /row (\d+) \(public_qid=([^)]+)\): (.+)/.exec(error.message);
