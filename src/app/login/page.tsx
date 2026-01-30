@@ -13,7 +13,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
     const nextParam = String(formData.get("next") ?? "/admin/bbox");
     const safeNext = nextParam.startsWith("/") ? nextParam : "/admin/bbox";
 
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
