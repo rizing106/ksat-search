@@ -114,7 +114,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
     .select("public_qid");
 
   if (error) {
-    return json(500, { error: "DB update failed", code: "DB_ERROR" });
+    return json(500, { error: "DB update failed", code: "DB_ERROR", details: { message: error.message, code: (error as any).code, hint: (error as any).hint, details: (error as any).details } });
   }
   if (!data || data.length === 0) {
     return json(404, { error: "Not found", code: "NOT_FOUND" });
@@ -122,3 +122,4 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
 
   return json(200, { ok: true });
 }
+
