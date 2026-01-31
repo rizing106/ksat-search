@@ -20,8 +20,18 @@ export async function searchQuestions(
 
   let questionIds: string[] | null = null;
 
-  if (params.q && params.q.trim().length > 0) {
-    const { tokens, bigrams, trigrams } = tokenizeQuery(params.q);
+  const queryText = params.q?.trim() ?? "";
+  if (queryText.length > 0 && queryText.length < 2) {
+    return {
+      items: [],
+      total: 0,
+      page,
+      pageSize,
+    };
+  }
+
+  if (queryText.length > 0) {
+    const { tokens, bigrams, trigrams } = tokenizeQuery(queryText);
     const groups = [
       { column: "tokens", values: tokens },
       { column: "bigrams", values: bigrams },
@@ -44,21 +54,19 @@ export async function searchQuestions(
         break;
       }
     }
-
-    if (questionIds === null) {
-      return {
-        items: [],
-        total: 0,
-        page,
-        pageSize,
-      };
-    }
   }
 
   let query = supabase.from("questions").select("*", { count: "exact" });
 
-  if (questionIds) {
-    query = query.in("id", questionIds);
+  if (queryText.length > 0) {
+    const orFilters: string[] = [
+      `unit.ilike.%${queryText}%`,
+      `qtype.ilike.%${queryText}%`,
+    ];
+    if (questionIds && questionIds.length > 0) {
+      orFilters.push(`id.in.(${questionIds.join(",")})`);
+    }
+    query = query.or(orFilters.join(","));
   }
 
   query = applyFilters(query, filters);

@@ -9,21 +9,26 @@ type Options = {
   dryRun: boolean;
   limit: number | null;
   batch: number;
+  debugRow: boolean;
 };
 
 type ImportRow = {
   public_qid: string;
   org_code2: string;
   subject_code2: string;
-  year: number;
-  month: number;
-  number: number;
+  year: number | null;
+  month: number | null;
+  number: number | null;
   unit: string;
   qtype: string;
   correct_rate: number | null;
   pdf_url: string;
-  page_no: number;
+  page_no: number | null;
   bbox: { x: number; y: number; w: number; h: number };
+  bbox_x: null;
+  bbox_y: null;
+  bbox_w: null;
+  bbox_h: null;
   tokens: string[];
   bigrams: string[];
   trigrams: string[];
@@ -42,13 +47,14 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npx tsx scripts/import_questions.ts --file <path> [--limit N] [--dry-run] [--batch N]",
+      "  npx tsx scripts/import_questions.ts --file <path> [--limit N] [--dry-run] [--batch N] [--debug-row]",
       "",
       "Options:",
       `  --file <path>   CSV file path (default: ${DEFAULT_FILE})`,
       "  --dry-run       Parse/validate only; no DB writes",
       "  --limit <n>     Limit number of rows processed",
       `  --batch <n>     Batch size (default: ${DEFAULT_BATCH})`,
+      "  --debug-row     Print first payload JSON and exit",
       "  -h, --help      Show this help",
     ].join("\n"),
   );
@@ -68,6 +74,7 @@ function parseArgs(argv: string[]): Options {
     dryRun: false,
     limit: null,
     batch: DEFAULT_BATCH,
+    debugRow: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -95,6 +102,10 @@ function parseArgs(argv: string[]): Options {
       if (!value) throw new Error("--batch requires a number");
       options.batch = parsePositiveInt(value, "--batch");
       i += 1;
+      continue;
+    }
+    if (arg === "--debug-row") {
+      options.debugRow = true;
       continue;
     }
     if (arg === "-h" || arg === "--help") {
@@ -152,26 +163,75 @@ function validateAndPrepareRows(
       }
     });
 
-    const year = Number(row.year);
-    const month = Number(row.month);
-    const number = Number(row.number);
-    const page_no = Number(row.page_no);
-    const correctRateRaw = row.correct_rate === "" ? null : Number(row.correct_rate);
-    if (row.correct_rate !== "" && Number.isNaN(correctRateRaw ?? 0)) {
+    const rowPreview = {
+      public_qid,
+      org_code2: row.org_code2,
+      subject_code2: row.subject_code2,
+      year: row.year,
+      month: row.month,
+      number: row.number,
+      page_no: row.page_no,
+      bbox_x: row.bbox_x,
+      bbox_y: row.bbox_y,
+      bbox_w: row.bbox_w,
+      bbox_h: row.bbox_h,
+      correct_rate: row.correct_rate,
+    };
+
+    const parseIntField = (value: string | undefined, field: string): number | null => {
+      const raw = (value ?? "").trim();
+      if (!raw) return null;
+      if (raw.includes(".")) {
+        throw new Error(
+          `Decimal value in integer field: ${field}=${raw} (row=${JSON.stringify(rowPreview)})`,
+        );
+      }
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const parseFloatField = (value: string | undefined): number | null => {
+      const raw = (value ?? "").trim();
+      if (!raw) return null;
+      const parsed = parseFloat(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const year = parseIntField(row.year, "year");
+    const month = parseIntField(row.month, "month");
+    const number = parseIntField(row.number, "number");
+    const page_no = parseIntField(row.page_no, "page_no");
+    const correct_rate = parseFloatField(row.correct_rate);
+    if (row.correct_rate && correct_rate === null) {
       errors.push("correct_rate must be a number");
     }
-    const correct_rate = Number.isNaN(correctRateRaw ?? 0) ? null : correctRateRaw;
 
     if (!Number.isInteger(year)) errors.push("year must be an integer");
     if (!Number.isInteger(month)) errors.push("month must be an integer");
     if (!Number.isInteger(number)) errors.push("number must be an integer");
     if (!Number.isInteger(page_no)) errors.push("page_no must be an integer");
 
+    const bboxRaw = {
+      x: parseFloatField(row.bbox_x),
+      y: parseFloatField(row.bbox_y),
+      w: parseFloatField(row.bbox_w),
+      h: parseFloatField(row.bbox_h),
+    };
+
+    const missingBbox = (["x", "y", "w", "h"] as const).filter(
+      (key) => bboxRaw[key] === null,
+    );
+    if (missingBbox.length > 0) {
+      throw new Error(
+        `Missing bbox fields for public_qid=${public_qid}: ${missingBbox.join(", ")}`,
+      );
+    }
+
     const bbox = {
-      x: Number(row.bbox_x),
-      y: Number(row.bbox_y),
-      w: Number(row.bbox_w),
-      h: Number(row.bbox_h),
+      x: bboxRaw.x as number,
+      y: bboxRaw.y as number,
+      w: bboxRaw.w as number,
+      h: bboxRaw.h as number,
     };
 
     (["x", "y", "w", "h"] as const).forEach((key) => {
@@ -191,7 +251,15 @@ function validateAndPrepareRows(
       return;
     }
 
-    const { tokens, bigrams, trigrams } = tokenizeQuery(row.raw_text || "");
+    const metaText = [row.unit, row.qtype].filter(Boolean).join(" ");
+    const rawText = row.raw_text || "";
+    const { tokens: baseTokens, bigrams: baseBigrams, trigrams: baseTrigrams } =
+      tokenizeQuery(rawText);
+    const { tokens: metaTokens, bigrams: metaBigrams, trigrams: metaTrigrams } =
+      tokenizeQuery(metaText);
+    const tokens = Array.from(new Set([...baseTokens, ...metaTokens]));
+    const bigrams = Array.from(new Set([...baseBigrams, ...metaBigrams]));
+    const trigrams = Array.from(new Set([...baseTrigrams, ...metaTrigrams]));
 
     prepared.push({
       rowNumber,
@@ -209,6 +277,10 @@ function validateAndPrepareRows(
         pdf_url: row.pdf_url,
         page_no,
         bbox,
+        bbox_x: null,
+        bbox_y: null,
+        bbox_w: null,
+        bbox_h: null,
         tokens,
         bigrams,
         trigrams,
@@ -241,7 +313,9 @@ async function run() {
     return;
   }
 
-  if (!(await assertDbConnection())) return;
+  if (!options.debugRow) {
+    if (!(await assertDbConnection())) return;
+  }
 
   const filePath = resolveFilePath(options.file);
   let content: string;
@@ -266,10 +340,30 @@ async function run() {
       ? records.slice(0, options.limit)
       : records;
 
-  const { prepared, failed: validationFailed } = validateAndPrepareRows(limitedRecords);
+  let prepared: PreparedRow[] = [];
+  let validationFailed = 0;
+  try {
+    const result = validateAndPrepareRows(limitedRecords);
+    prepared = result.prepared;
+    validationFailed = result.failed;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    process.exitCode = 1;
+    return;
+  }
 
   let successCount = 0;
   let failedCount = validationFailed;
+
+  if (options.debugRow) {
+    if (prepared.length === 0) {
+      console.log("No valid rows to preview.");
+    } else {
+      console.log(JSON.stringify(prepared[0].payload, null, 2));
+    }
+    return;
+  }
 
   if (options.dryRun) {
     successCount = prepared.length;
