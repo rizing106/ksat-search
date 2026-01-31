@@ -8,7 +8,7 @@ type ResponseInitWithHeaders = Omit<ResponseInit, "headers"> & {
 
 export function json(data: unknown, init: ResponseInitWithHeaders = {}) {
   const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json");
+  headers.set("content-type", "application/json; charset=utf-8");
   headers.set("Cache-Control", noStoreHeaders["Cache-Control"]);
 
   return new Response(JSON.stringify(data), {

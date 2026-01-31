@@ -11,11 +11,15 @@ type QuestionDetail = {
 };
 
 type ApiError = { error: string; code?: string };
+type ApiResponseOk = { ok: true };
 
 export default function AdminBboxPage() {
   const [publicQid, setPublicQid] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const [saveError, setSaveError] = useState<{ status: number; code?: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [data, setData] = useState<QuestionDetail | null>(null);
 
   const handleLoad = async () => {
@@ -29,6 +33,8 @@ export default function AdminBboxPage() {
     setLoading(true);
     setError(null);
     setData(null);
+    setSaveError(null);
+    setSaveMessage(null);
 
     try {
       const res = await fetch(`/api/questions/${trimmed}`);
@@ -48,13 +54,39 @@ export default function AdminBboxPage() {
     }
   };
 
+  const handleSave = async () => {
+    if (!data || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const res = await fetch(`/api/admin/questions/${data.public_qid}/bbox`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ page_no: data.page_no, bbox: data.bbox }),
+      });
+      const payload = (await res.json()) as ApiResponseOk | ApiError;
+      if (res.ok && (payload as ApiResponseOk).ok) {
+        setSaveMessage("Saved");
+        return;
+      }
+      const code = (payload as ApiError)?.code;
+      setSaveError({ status: res.status, code });
+    } catch (err) {
+      setSaveError({
+        status: 500,
+        code: err instanceof Error ? err.message : "UNKNOWN_ERROR",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Admin BBox Tool (scaffold)</h1>
-        <p className="text-sm text-gray-600">
-          TODO: drag to set bbox + save (저장 기능은 다음 단계)
-        </p>
+        <p className="text-sm text-gray-600">TODO: drag to set bbox + save</p>
       </header>
 
       <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -73,10 +105,11 @@ export default function AdminBboxPage() {
             {loading ? "불러오는 중..." : "불러오기"}
           </button>
           <button
-            className="rounded-md border px-4 py-2 text-sm font-medium text-gray-500"
-            disabled
+            className="rounded-md border px-4 py-2 text-sm font-medium text-gray-600 disabled:cursor-not-allowed disabled:text-gray-400"
+            disabled={!data || saving}
+            onClick={handleSave}
           >
-            bbox 저장
+            {saving ? "Saving..." : "bbox 저장"}
           </button>
         </div>
         <p className="mt-2 text-xs text-gray-500">TODO: drag to set bbox + save</p>
@@ -87,12 +120,25 @@ export default function AdminBboxPage() {
             {error.code ? ` (${error.code})` : ""}
           </div>
         )}
+
+        {saveMessage && (
+          <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {saveMessage}
+          </div>
+        )}
+
+        {saveError && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+            Save failed: {saveError.status}
+            {saveError.code ? ` (${saveError.code})` : ""}
+          </div>
+        )}
       </section>
 
       {data && (
         <section className="grid gap-6 lg:grid-cols-[360px_1fr]">
           <div className="flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-semibold">문항 메타</h2>
+            <h2 className="text-lg font-semibold">문항 정보</h2>
             <dl className="text-sm text-gray-700">
               <div className="mb-2">
                 <dt className="text-xs text-gray-500">public_qid</dt>

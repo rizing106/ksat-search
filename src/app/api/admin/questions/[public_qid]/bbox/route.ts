@@ -1,20 +1,14 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { env } from "@/lib/env";
+import { env } from "@/lib/env.server";
 import { supabaseAdmin } from "@/lib/supabaseAdminServer";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { json } from "@/lib/apiResponse";
 
 export const runtime = "nodejs";
 
 type Params = { public_qid: string };
 type BBox = { x: number; y: number; w: number; h: number };
-
-function json(status: number, body: any, headers?: Record<string, string>) {
-  return new NextResponse(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", ...(headers ?? {}) },
-  });
-}
 
 function parseAdminEmails(raw?: string) {
   return (raw ?? "")
@@ -56,7 +50,10 @@ async function getUserEmail(req: NextRequest): Promise<string | null> {
 }
 
 export async function GET(_req: NextRequest) {
-  return json(405, { error: "Method Not Allowed", code: "METHOD_NOT_ALLOWED" }, { Allow: "PATCH" });
+  return json(
+    { error: "Method Not Allowed", code: "METHOD_NOT_ALLOWED" },
+    { status: 405, headers: { Allow: "PATCH" } },
+  );
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<Params> }) {
@@ -65,15 +62,15 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
   // --- auth/admin check ---
   const adminEmails = parseAdminEmails(env.ADMIN_EMAILS);
   if (adminEmails.length === 0) {
-    return json(403, { error: "Admin list not configured", code: "FORBIDDEN" });
+    return json({ error: "Admin list not configured", code: "FORBIDDEN" }, { status: 403 });
   }
 
   const userEmail = await getUserEmail(req);
   if (!userEmail) {
-    return json(401, { error: "Unauthorized", code: "UNAUTHORIZED" });
+    return json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
   }
   if (!adminEmails.includes(userEmail)) {
-    return json(403, { error: "Forbidden", code: "FORBIDDEN" });
+    return json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
 
   // --- input validation ---
@@ -81,14 +78,14 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
   try {
     body = await req.json();
   } catch {
-    return json(400, { error: "Invalid JSON", code: "BAD_REQUEST" });
+    return json({ error: "Invalid JSON", code: "BAD_REQUEST" }, { status: 400 });
   }
 
   const page_no = body?.page_no;
   const bbox: BBox | undefined = body?.bbox;
 
   if (!Number.isInteger(page_no) || page_no < 1) {
-    return json(400, { error: "Invalid page_no", code: "BAD_REQUEST" });
+    return json({ error: "Invalid page_no", code: "BAD_REQUEST" }, { status: 400 });
   }
   if (
     !bbox ||
@@ -97,7 +94,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
     !isFiniteNumber(bbox.w) || bbox.w <= 0 ||
     !isFiniteNumber(bbox.h) || bbox.h <= 0
   ) {
-    return json(400, { error: "Invalid bbox", code: "BAD_REQUEST" });
+    return json({ error: "Invalid bbox", code: "BAD_REQUEST" }, { status: 400 });
   }
 
   // --- DB update (service_role) ---
@@ -114,14 +111,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
     .select("public_qid");
 
   if (error) {
-    return json(500, {
-      error: "DB update failed",
-      code: "DB_ERROR",
-    });
+    return json({ error: "DB update failed", code: "DB_ERROR" }, { status: 500 });
   }
   if (!data || data.length === 0) {
-    return json(404, { error: "Not found", code: "NOT_FOUND" });
+    return json({ error: "Not found", code: "NOT_FOUND" }, { status: 404 });
   }
 
-  return json(200, { ok: true });
+  return json({ ok: true }, { status: 200 });
 }

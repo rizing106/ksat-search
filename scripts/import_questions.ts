@@ -1,4 +1,5 @@
 import { readFileSync } from "fs";
+import path from "path";
 import { parse } from "csv-parse/sync";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { tokenizeQuery } from "../src/lib/tokenize";
@@ -40,7 +41,8 @@ const DEFAULT_BATCH = 500;
 function printUsage() {
   console.log(
     [
-      "Usage: node scripts/import_questions.ts [options]",
+      "Usage:",
+      "  npx tsx scripts/import_questions.ts --file <path> [--limit N] [--dry-run] [--batch N]",
       "",
       "Options:",
       `  --file <path>   CSV file path (default: ${DEFAULT_FILE})`,
@@ -72,9 +74,7 @@ function parseArgs(argv: string[]): Options {
     const arg = argv[i];
     if (arg === "--file") {
       const value = argv[i + 1];
-      if (!value) {
-        throw new Error("--file requires a path");
-      }
+      if (!value) throw new Error("--file requires a path");
       options.file = value;
       i += 1;
       continue;
@@ -85,18 +85,14 @@ function parseArgs(argv: string[]): Options {
     }
     if (arg === "--limit") {
       const value = argv[i + 1];
-      if (!value) {
-        throw new Error("--limit requires a number");
-      }
+      if (!value) throw new Error("--limit requires a number");
       options.limit = parsePositiveInt(value, "--limit");
       i += 1;
       continue;
     }
     if (arg === "--batch") {
       const value = argv[i + 1];
-      if (!value) {
-        throw new Error("--batch requires a number");
-      }
+      if (!value) throw new Error("--batch requires a number");
       options.batch = parsePositiveInt(value, "--batch");
       i += 1;
       continue;
@@ -114,9 +110,7 @@ function parseArgs(argv: string[]): Options {
 async function assertDbConnection() {
   try {
     const { error } = await supabaseAdmin.from("organizations").select("code2").limit(1);
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("DB connection failed. Check Supabase URL/key and permissions.");
@@ -197,7 +191,6 @@ function validateAndPrepareRows(
       return;
     }
 
-    // raw_text is only used for tokenization; never store it in the DB.
     const { tokens, bigrams, trigrams } = tokenizeQuery(row.raw_text || "");
 
     prepared.push({
@@ -231,6 +224,10 @@ function formatDuration(ms: number) {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+function resolveFilePath(inputPath: string) {
+  return path.isAbsolute(inputPath) ? inputPath : path.resolve(process.cwd(), inputPath);
+}
+
 async function run() {
   const startTime = Date.now();
   let options: Options;
@@ -244,16 +241,15 @@ async function run() {
     return;
   }
 
-  if (!(await assertDbConnection())) {
-    return;
-  }
+  if (!(await assertDbConnection())) return;
 
+  const filePath = resolveFilePath(options.file);
   let content: string;
   try {
-    content = readFileSync(options.file, "utf8");
+    content = readFileSync(filePath, "utf8");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`Failed to read file: ${options.file}`);
+    console.error(`Failed to read file: ${filePath}`);
     console.error(`Details: ${message}`);
     process.exitCode = 1;
     return;
@@ -273,7 +269,6 @@ async function run() {
   const { prepared, failed: validationFailed } = validateAndPrepareRows(limitedRecords);
 
   let successCount = 0;
-  let skippedCount = 0;
   let failedCount = validationFailed;
 
   if (options.dryRun) {
@@ -311,7 +306,6 @@ async function run() {
   const duration = Date.now() - startTime;
   console.log(`Total rows: ${limitedRecords.length}`);
   console.log(`Success: ${successCount}`);
-  console.log(`Skipped: ${skippedCount}`);
   console.log(`Failed: ${failedCount}`);
   console.log(`Duration: ${formatDuration(duration)}`);
 }
