@@ -11,9 +11,7 @@ export async function GET(
   if (rateLimitResponse) return rateLimitResponse;
   try {
     const { public_qid } = await params;
-    const url = new URL(request.url);
-    const fallbackId = url.pathname.split("/").filter(Boolean).pop();
-    const publicQid = public_qid ?? fallbackId ?? "";
+    const publicQid = typeof public_qid === "string" ? public_qid : "";
     if (!/^\d{12}$/.test(publicQid)) {
       return error(400, "Invalid public_qid", "BAD_REQUEST");
     }
