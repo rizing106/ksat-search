@@ -10,10 +10,22 @@ function parseAdminEmails(value?: string) {
     .filter(Boolean);
 }
 
-function redirectLogin(request: NextRequest, response: NextResponse) {
-  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+function redirectLogin(
+  request: NextRequest,
+  response: NextResponse,
+  options: { nextPath?: string; error?: string } = {},
+) {
   const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("next", nextPath);
+  const params: string[] = [];
+  if (options.nextPath) {
+    params.push(`next=${encodeURIComponent(options.nextPath)}`);
+  }
+  if (options.error) {
+    params.push(`error=${options.error}`);
+  }
+  if (params.length > 0) {
+    loginUrl.search = `?${params.join("&")}`;
+  }
   const redirect = NextResponse.redirect(loginUrl);
   const cookies = response.cookies.getAll();
   cookies.forEach((cookie) => redirect.cookies.set(cookie));
@@ -45,8 +57,13 @@ export async function middleware(request: NextRequest) {
   const userEmail = data.user?.email?.toLowerCase();
   const isAdmin = !!userEmail && adminEmails.includes(userEmail);
 
+  if (!data.user) {
+    const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+    return redirectLogin(request, response, { nextPath });
+  }
+
   if (!isAdmin) {
-    return redirectLogin(request, response);
+    return redirectLogin(request, response, { error: "not_admin" });
   }
 
   return response;

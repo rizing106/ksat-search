@@ -28,7 +28,13 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
       <h1 className="text-2xl font-semibold">Admin Login</h1>
       <p className="text-sm text-gray-600">Sign in with your admin account.</p>
 
-      {searchParams?.error ? (
+      {searchParams?.error === "not_admin" ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+          관리자 권한이 없습니다.
+        </div>
+      ) : null}
+
+      {searchParams?.error === "1" ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
           Login failed. Check your email and password.
         </div>
