@@ -1,0 +1,45 @@
+name: sanity
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: HTTP 200 checks
+        shell: pwsh
+        run: |
+          $urls = @(
+            "https://ksat-search.vercel.app/health",
+            "https://ksat-search.vercel.app/health/rls",
+            "https://ksat-search.vercel.app/api/meta/organizations",
+            "https://ksat-search.vercel.app/api/meta/subjects",
+            "https://ksat-search.vercel.app/api/questions?page=1&pageSize=1&q=%EC%88%98%EC%97%B4"
+          )
+
+          foreach ($url in $urls) {
+            try {
+              $res = Invoke-WebRequest -Uri $url -UseBasicParsing -Method GET
+              if ($res.StatusCode -ne 200) {
+                Write-Error "Non-200 status for $url: $($res.StatusCode)"
+                exit 1
+              }
+            } catch {
+              Write-Error "Request failed for $url: $($_.Exception.Message)"
+              exit 1
+            }
+          }

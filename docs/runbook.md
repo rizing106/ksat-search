@@ -47,6 +47,17 @@ ORDER BY created_at DESC
 LIMIT 20;
 ```
 
+## Rate limit 검증(운영)
+PowerShell 동시 테스트(120 jobs) 예시:
+```powershell
+$url = "https://ksat-search.vercel.app/api/questions?page=1&pageSize=5&q=%EC%88%98%ED%95%99"
+$jobs = 1..120 | ForEach-Object { Start-Job -ScriptBlock { param($u) Invoke-WebRequest -Uri $u -UseBasicParsing | Select-Object -ExpandProperty StatusCode } -ArgumentList $url }
+$results = $jobs | Wait-Job | Receive-Job
+$results | Group-Object | Sort-Object Name | ForEach-Object { "{0}: {1}" -f $_.Name, $_.Count }
+```
+기대 결과: 200과 429가 섞임 (429가 나오면 정상).
+주의: URL은 동일하게 유지해야 함(쿼리 바꾸면 회피될 수 있음).
+
 ## Do NOTs (Strict)
 - **서비스 롤 키 노출 금지**: SUPABASE_SERVICE_ROLE_KEY는 절대 클라이언트/로그/공유에 노출하지 말 것.
 - **NEXT_PUBLIC로 서비스 롤 키 등록 금지**: `NEXT_PUBLIC_` 접두사는 공개 번들이므로 사용 금지.
