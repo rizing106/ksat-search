@@ -6,19 +6,11 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 
-// 배포 반영 여부를 100% 확인하기 위한 스탬프(바뀌면 배포도 바뀐 것)
-const STAMP = "bbox-api-debug-v1";
-
 type Params = { public_qid: string };
 type BBox = { x: number; y: number; w: number; h: number };
 
 function json(status: number, body: any, headers?: Record<string, string>) {
-  const payload =
-    body && typeof body === "object"
-      ? { ...body, stamp: STAMP }
-      : { value: body, stamp: STAMP };
-
-  return new NextResponse(JSON.stringify(payload), {
+  return new NextResponse(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json", ...(headers ?? {}) },
   });
@@ -125,12 +117,6 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
     return json(500, {
       error: "DB update failed",
       code: "DB_ERROR",
-      details: {
-        message: error.message,
-        code: (error as any).code,
-        hint: (error as any).hint,
-        details: (error as any).details,
-      },
     });
   }
   if (!data || data.length === 0) {
