@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { env } from "@/lib/env.server";
-import { supabaseAdmin } from "@/lib/supabaseAdminServer";
+import { getServerEnv } from "@/lib/env.server";
+import { getSupabaseAdmin } from "@/lib/supabaseAdminServer";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { json } from "@/lib/apiResponse";
 
@@ -22,6 +22,7 @@ function isFiniteNumber(v: unknown): v is number {
 }
 
 async function getUserEmail(req: NextRequest): Promise<string | null> {
+  const env = getServerEnv();
   // 1) Cookie-based session (browser login)
   try {
     const supabase = await createSupabaseServerClient();
@@ -58,6 +59,7 @@ export async function GET(_req: NextRequest) {
 
 export async function PATCH(req: NextRequest, context: { params: Promise<Params> }) {
   const { public_qid } = await context.params;
+  const env = getServerEnv();
 
   // --- auth/admin check ---
   const adminEmails = parseAdminEmails(env.ADMIN_EMAILS);
@@ -83,30 +85,46 @@ export async function PATCH(req: NextRequest, context: { params: Promise<Params>
 
   const page_no = body?.page_no;
   const bbox: BBox | undefined = body?.bbox;
+  const pageNo = Number(page_no);
 
-  if (!Number.isInteger(page_no) || page_no < 1) {
+  if (!Number.isFinite(pageNo) || pageNo < 1) {
     return json({ error: "Invalid page_no", code: "BAD_REQUEST" }, { status: 400 });
   }
+  const bx = Number(bbox?.x);
+  const by = Number(bbox?.y);
+  const bw = Number(bbox?.w);
+  const bh = Number(bbox?.h);
   if (
     !bbox ||
-    !isFiniteNumber(bbox.x) || bbox.x < 0 ||
-    !isFiniteNumber(bbox.y) || bbox.y < 0 ||
-    !isFiniteNumber(bbox.w) || bbox.w <= 0 ||
-    !isFiniteNumber(bbox.h) || bbox.h <= 0
+    [bx, by, bw, bh].some((v) => !Number.isFinite(v)) ||
+    bx < 0 ||
+    by < 0 ||
+    bw <= 0 ||
+    bh <= 0
   ) {
     return json({ error: "Invalid bbox", code: "BAD_REQUEST" }, { status: 400 });
   }
 
   // --- DB update (service_role) ---
-  const { data, error } = await supabaseAdmin
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch {
+    return json(
+      { error: "Server misconfigured", code: "MISSING_SERVICE_ROLE" },
+      { status: 500 },
+    );
+  }
+  const patch = {
+    page_no: pageNo,
+    bbox_x: bx,
+    bbox_y: by,
+    bbox_w: bw,
+    bbox_h: bh,
+  } as any;
+  const { data, error } = await (supabaseAdmin as any)
     .from("questions")
-    .update({
-      page_no,
-      bbox_x: bbox.x,
-      bbox_y: bbox.y,
-      bbox_w: bbox.w,
-      bbox_h: bbox.h,
-    })
+    .update(patch)
     .eq("public_qid", public_qid)
     .select("public_qid");
 
