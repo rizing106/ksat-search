@@ -1,17 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
-import { env } from "./env.server";
+import { getServerEnv, requireServiceRoleKey } from "./env.server";
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+let cachedAdmin: ReturnType<typeof createClient> | null = null;
 
-if (!url) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL for supabaseAdmin.");
+export function getSupabaseAdmin() {
+  if (cachedAdmin) return cachedAdmin;
+  const env = getServerEnv();
+  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL for supabaseAdmin.");
+  }
+  const serviceRoleKey = requireServiceRoleKey();
+  cachedAdmin = createClient(url, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+  return cachedAdmin;
 }
-
-if (!serviceRoleKey) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY for supabaseAdmin.");
-}
-
-export const supabaseAdmin = createClient(url, serviceRoleKey, {
-  auth: { persistSession: false },
-});

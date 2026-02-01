@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { env } from "./lib/env.server";
+import { getServerEnv } from "./lib/env.server";
 
 function parseAdminEmails(value?: string) {
   return (value ?? "")
@@ -34,6 +34,7 @@ function redirectLogin(
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
+  const env = getServerEnv();
 
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,

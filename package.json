@@ -9,7 +9,10 @@
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "import:questions": "tsx scripts/import_questions.ts"
+    "import:questions": "tsx scripts/import_questions.ts",
+    "csv:validate": "tsx scripts/validate_csv.ts",
+    "csv:seed": "tsx scripts/seed_from_csv.ts",
+    "sanity": "tsx scripts/sanity_check.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
