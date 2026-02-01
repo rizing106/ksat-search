@@ -8,16 +8,22 @@ on:
 jobs:
   sanity:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy.dummy"
+      NEXT_PUBLIC_SITE_URL: "https://ksat-search.vercel.app"
+      ADMIN_EMAILS: "admin@example.com"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Use Node 20
+      - name: Use Node 20.x + npm cache
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.x"
           cache: npm
+          cache-dependency-path: package-lock.json
       - name: Install
-        run: npm ci
+        run: npm ci --no-audit --no-fund
       - name: Build
         run: npm run build
       - name: HTTP 200 checks
