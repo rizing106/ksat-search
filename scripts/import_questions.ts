@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { appendFileSync, mkdirSync, readFileSync } from "fs";
 import path from "path";
 import { parse } from "csv-parse/sync";
 import { supabaseAdmin } from "./supabaseAdmin";
@@ -38,6 +38,12 @@ type PreparedRow = {
   rowNumber: number;
   public_qid: string;
   payload: ImportRow;
+};
+
+type RowFailure = {
+  rowNumber: number;
+  public_qid: string;
+  error: string;
 };
 
 const DEFAULT_FILE = "data/questions.sample.csv";
@@ -134,9 +140,10 @@ async function assertDbConnection() {
 
 function validateAndPrepareRows(
   records: Array<Record<string, string>>,
-): { prepared: PreparedRow[]; failed: number } {
+): { prepared: PreparedRow[]; failed: number; failures: RowFailure[] } {
   const prepared: PreparedRow[] = [];
   let failed = 0;
+  const failures: RowFailure[] = [];
 
   records.forEach((row, index) => {
     const rowNumber = index + 1;
@@ -222,9 +229,7 @@ function validateAndPrepareRows(
       (key) => bboxRaw[key] === null,
     );
     if (missingBbox.length > 0) {
-      throw new Error(
-        `Missing bbox fields for public_qid=${public_qid}: ${missingBbox.join(", ")}`,
-      );
+      errors.push(`bbox requires all fields: ${missingBbox.join(", ")}`);
     }
 
     const bbox = {
@@ -245,6 +250,11 @@ function validateAndPrepareRows(
 
     if (errors.length > 0) {
       failed += 1;
+      failures.push({
+        rowNumber,
+        public_qid: public_qid ?? "",
+        error: errors.join("; "),
+      });
       console.error(
         `Row ${rowNumber} (public_qid=${public_qid ?? "unknown"}): ${errors.join("; ")}`,
       );
@@ -288,7 +298,7 @@ function validateAndPrepareRows(
     });
   });
 
-  return { prepared, failed };
+  return { prepared, failed, failures };
 }
 
 function formatDuration(ms: number) {
@@ -298,6 +308,42 @@ function formatDuration(ms: number) {
 
 function resolveFilePath(inputPath: string) {
   return path.isAbsolute(inputPath) ? inputPath : path.resolve(process.cwd(), inputPath);
+}
+
+function formatLogName(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  return `${yyyy}${mm}${dd}_${hh}${min}${ss}`;
+}
+
+function resolveLogName() {
+  const envValue = (process.env.IMPORT_LOG_NAME ?? "").trim();
+  return envValue !== "" ? envValue : formatLogName(new Date());
+}
+
+function formatManifestStamp(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  return `${yyyy}${mm}${dd}-${hh}${min}${ss}`;
+}
+
+function logRpcErrorHint(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("permission") || lower.includes("permission denied")) {
+    console.error("RPC permission error: check service role key and RLS policies.");
+  } else if (lower.includes("function") && lower.includes("does not exist")) {
+    console.error("RPC function missing: ensure public.import_questions_batch exists.");
+  }
 }
 
 async function run() {
@@ -342,10 +388,12 @@ async function run() {
 
   let prepared: PreparedRow[] = [];
   let validationFailed = 0;
+  let validationFailures: RowFailure[] = [];
   try {
     const result = validateAndPrepareRows(limitedRecords);
     prepared = result.prepared;
     validationFailed = result.failed;
+    validationFailures = result.failures;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(message);
@@ -355,6 +403,15 @@ async function run() {
 
   let successCount = 0;
   let failedCount = validationFailed;
+  const logName = resolveLogName();
+  const manifestStamp = formatManifestStamp(new Date());
+  const manifestDir = path.resolve(process.cwd(), "logs");
+  const manifestPath = path.join(manifestDir, `manifest-${manifestStamp}.jsonl`);
+  const shouldWriteManifest = !options.dryRun;
+  const appendManifest = (entry: { public_qid: string; status: "success" | "fail"; error_message?: string }) => {
+    if (!shouldWriteManifest) return;
+    appendFileSync(manifestPath, `${JSON.stringify(entry)}\n`, "utf8");
+  };
 
   if (options.debugRow) {
     if (prepared.length === 0) {
@@ -369,6 +426,15 @@ async function run() {
     successCount = prepared.length;
     console.log("Dry run enabled. No DB writes performed.");
   } else {
+    mkdirSync(manifestDir, { recursive: true });
+    validationFailures.forEach((failure) => {
+      appendManifest({
+        public_qid: failure.public_qid || "unknown",
+        status: "fail",
+        error_message: failure.error,
+      });
+    });
+
     for (let i = 0; i < prepared.length; i += options.batch) {
       const batchRows = prepared.slice(i, i + options.batch);
       const payload = batchRows.map((row) => row.payload);
@@ -376,6 +442,7 @@ async function run() {
       const { error } = await supabaseAdmin.rpc("import_questions_batch", { rows: payload });
       if (error) {
         failedCount += batchRows.length;
+        logRpcErrorHint(error.message);
         const match = /row (\d+) \(public_qid=([^)]+)\): (.+)/.exec(error.message);
         if (match) {
           const rowIndex = Number(match[1]) - 1;
@@ -389,10 +456,26 @@ async function run() {
         } else {
           console.error(`Batch starting at row ${batchRows[0].rowNumber} failed: ${error.message}`);
         }
+        const rowErrorMap = new Map<string, string>();
+        if (match) {
+          rowErrorMap.set(match[2], match[3]);
+        }
+        batchRows.forEach((row) => {
+          const reason =
+            rowErrorMap.get(row.public_qid) ?? `Batch failed: ${error.message}`;
+          appendManifest({
+            public_qid: row.public_qid,
+            status: "fail",
+            error_message: reason,
+          });
+        });
         process.exitCode = 1;
         continue;
       }
 
+      batchRows.forEach((row) => {
+        appendManifest({ public_qid: row.public_qid, status: "success" });
+      });
       successCount += batchRows.length;
     }
   }
@@ -402,6 +485,10 @@ async function run() {
   console.log(`Success: ${successCount}`);
   console.log(`Failed: ${failedCount}`);
   console.log(`Duration: ${formatDuration(duration)}`);
+
+  if (failedCount > 0) {
+    process.exitCode = 1;
+  }
 }
 
 run().catch((error) => {
