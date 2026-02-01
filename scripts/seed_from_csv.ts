@@ -6,6 +6,8 @@ import { supabaseAdmin } from "./supabaseAdmin";
 type Options = {
   file: string;
   limit: number;
+  dryRun: boolean;
+  analyze: boolean;
 };
 
 type CodeStats = {
@@ -23,11 +25,13 @@ function printUsage() {
   console.log(
     [
       "Usage:",
-      "  npx tsx scripts/seed_from_csv.ts --file <path> [--limit N]",
+      "  npx tsx scripts/seed_from_csv.ts --file <path> [--limit N] [--dry-run] [--analyze]",
       "",
       "Options:",
       "  --file <path>   CSV file path (required)",
       "  --limit <n>     Limit number of rows processed (0 = all)",
+      "  --dry-run       Parse only; no DB writes/RPC",
+      "  --analyze       Call ops_analyze() after successful seed",
       "  -h, --help      Show this help",
     ].join("\n"),
   );
@@ -45,6 +49,8 @@ function parseArgs(argv: string[]): Options {
   const options: Options = {
     file: "",
     limit: DEFAULT_LIMIT,
+    dryRun: false,
+    analyze: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -61,6 +67,14 @@ function parseArgs(argv: string[]): Options {
       if (!value) throw new Error("--limit requires a number");
       options.limit = parsePositiveInt(value, "--limit");
       i += 1;
+      continue;
+    }
+    if (arg === "--dry-run") {
+      options.dryRun = true;
+      continue;
+    }
+    if (arg === "--analyze") {
+      options.analyze = true;
       continue;
     }
     if (arg === "-h" || arg === "--help") {
@@ -204,6 +218,15 @@ async function run() {
   const orgList = Array.from(orgCodes);
   const subjectList = Array.from(subjectCodes);
 
+  if (options.dryRun) {
+    console.log("Dry run enabled. No DB writes or RPC calls.");
+    console.log(`File: ${filePath}`);
+    console.log(`Rows processed: ${limitedRecords.length}`);
+    console.log(`Unique org_code2: ${orgList.length} (invalid: ${orgInvalid})`);
+    console.log(`Unique subject_code2: ${subjectList.length} (invalid: ${subjectInvalid})`);
+    return;
+  }
+
   let orgExisting = new Set<string>();
   let subjectExisting = new Set<string>();
   try {
@@ -226,7 +249,8 @@ async function run() {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(message);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const orgStats: CodeStats = {
@@ -254,6 +278,16 @@ async function run() {
   console.log(
     `Subjects       - unique: ${subjectStats.unique}, existing: ${subjectStats.existing}, inserted: ${subjectStats.inserted}, invalid: ${subjectStats.invalid}`,
   );
+
+  if (options.analyze) {
+    const { error } = await supabaseAdmin.rpc("ops_analyze");
+    if (error) {
+      console.error(`ops_analyze failed: ${error.message}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log("ops_analyze: success");
+  }
 }
 
 run().catch((error) => {
