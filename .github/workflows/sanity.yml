@@ -37,15 +37,15 @@ jobs:
             "https://ksat-search.vercel.app/api/questions?page=1&pageSize=1&q=%EC%88%98%EC%97%B4"
           )
 
-          foreach ($url in $urls) {
+          foreach (${url} in $urls) {
             try {
               $res = Invoke-WebRequest -Uri $url -UseBasicParsing -Method GET
               if ($res.StatusCode -ne 200) {
-                Write-Error "Non-200 status for $url: $($res.StatusCode)"
+                Write-Error "Non-200 status for ${url}: $($res.StatusCode)"
                 exit 1
               }
             } catch {
-              Write-Error "Request failed for $url: $($_.Exception.Message)"
+              Write-Error "Request failed for ${url}: $($_.Exception.Message)"
               exit 1
             }
           }
