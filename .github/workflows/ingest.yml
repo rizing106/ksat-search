@@ -1,0 +1,58 @@
+name: ingest
+
+on:
+  workflow_dispatch:
+    inputs:
+      csv_url:
+        description: "Optional CSV URL to download"
+        required: false
+        default: ""
+      csv_path:
+        description: "Repo CSV path"
+        required: false
+        default: "data/questions.sample.csv"
+      limit:
+        description: "Row limit (0 = all)"
+        required: false
+        default: "0"
+  schedule:
+    - cron: "0 18 * * 0"
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      CSV_URL: ${{ github.event.inputs.csv_url || '' }}
+      CSV_PATH: ${{ github.event.inputs.csv_path || 'data/questions.sample.csv' }}
+      LIMIT: ${{ github.event.inputs.limit || '0' }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Resolve CSV
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${CSV_URL}" ]; then
+            echo "Downloading CSV from URL"
+            mkdir -p data
+            curl -fsSL "${CSV_URL}" -o data/ingest.csv
+            echo "CSV_FILE=data/ingest.csv" >> "$GITHUB_ENV"
+          else
+            echo "Using CSV path from repo"
+            echo "CSV_FILE=${CSV_PATH}" >> "$GITHUB_ENV"
+          fi
+      - name: Validate CSV
+        run: npx tsx scripts/validate_csv.ts --file "${CSV_FILE}"
+      - name: Seed from CSV
+        run: npx tsx scripts/seed_from_csv.ts --file "${CSV_FILE}" --limit "${LIMIT}" --analyze
