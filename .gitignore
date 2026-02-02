@@ -41,7 +41,9 @@ yarn-error.log*
 next-env.d.ts
 /data/incoming/*
 /data/archive/*
-/logs/*
-!/logs/.gitkeep
+
+# local data / generated artifacts (do not commit)
+data/stats/
+docs/data/
 data/answer_rates/
-data/answer_rates/**
+logs/

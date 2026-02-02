@@ -44,6 +44,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${CSV_URL}" ]; then
+            domain="$(echo "${CSV_URL}" | awk -F/ '{print $3}')"
+            if [ "${domain}" != "raw.githubusercontent.com" ] && [ "${domain}" != "github.com" ]; then
+              echo "Blocked csv_url domain: ${domain}"
+              exit 1
+            fi
             echo "Downloading CSV from URL"
             mkdir -p data
             curl -fsSL "${CSV_URL}" -o data/ingest.csv
@@ -56,3 +61,12 @@ jobs:
         run: npx tsx scripts/validate_csv.ts --file "${CSV_FILE}"
       - name: Seed from CSV
         run: npx tsx scripts/seed_from_csv.ts --file "${CSV_FILE}" --limit "${LIMIT}" --analyze
+      - name: Upload ingest summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-summary
+          path: |
+            logs/ingest_summary.json
+            logs/manifest.json
+          if-no-files-found: warn

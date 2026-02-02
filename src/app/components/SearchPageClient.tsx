@@ -88,7 +88,7 @@ export default function SearchPageClient() {
         ]);
 
         if (!orgRes.ok || !subjectRes.ok) {
-          throw new Error("필터 목록 로딩 실패");
+          throw new Error("?�터 목록 로딩 ?�패");
         }
 
         const orgJson = await orgRes.json();
@@ -100,7 +100,7 @@ export default function SearchPageClient() {
         }
       } catch (err) {
         if (!cancelled) {
-          setMetaError(err instanceof Error ? err.message : "필터 목록 로딩 실패");
+          setMetaError(err instanceof Error ? err.message : "?�터 목록 로딩 ?�패");
           setOrgOptions([]);
           setSubjectOptions([]);
         }
@@ -139,7 +139,7 @@ export default function SearchPageClient() {
         setTotal(data.total ?? 0);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "검색에 실패했습니다.");
+        setError(err instanceof Error ? err.message : "검?�에 ?�패?�습?�다.");
         setItems([]);
         setTotal(0);
       } finally {
@@ -185,6 +185,11 @@ export default function SearchPageClient() {
     router.push(`/?${params.toString()}`);
   }
 
+  function handleResetFilters() {
+    setState(DEFAULT_STATE);
+    router.push("/");
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
 
   return (
@@ -195,15 +200,14 @@ export default function SearchPageClient() {
             <div>
               <p className="text-sm uppercase tracking-[0.4em] text-zinc-500">KSAT SEARCH</p>
               <h1 className="mt-3 text-4xl font-semibold leading-tight text-zinc-900 md:text-5xl">
-                빠르게 찾는 수능 기출
+                빠르�?찾는 ?�능 기출
               </h1>
               <p className="mt-3 max-w-2xl text-base text-zinc-600">
-                키워드와 필터를 조합해 문항을 빠르게 좁혀보세요. 결과는 실시간으로 URL에
-                반영됩니다.
+                ?�워?��? ?�터�?조합??문항??빠르�?좁�?보세?? 결과???�시간으�?URL??                반영?�니??
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200/70 bg-white/80 px-5 py-4 shadow-sm backdrop-blur">
-              <div className="text-xs text-zinc-500">현재 결과</div>
+              <div className="text-xs text-zinc-500">?�재 결과</div>
               <div className="mt-1 text-2xl font-semibold text-zinc-900">{total}</div>
             </div>
           </div>
@@ -221,7 +225,7 @@ export default function SearchPageClient() {
               <input
                 value={state.q}
                 onChange={(e) => updateField("q", e.target.value)}
-                placeholder="키워드 또는 수식 힌트"
+                placeholder="?�워???�는 ?�식 ?�트"
                 className="mt-3 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 shadow-sm focus:border-zinc-400 focus:outline-none"
               />
             </div>
@@ -230,42 +234,41 @@ export default function SearchPageClient() {
                 type="submit"
                 className="h-12 rounded-2xl bg-zinc-900 px-6 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-zinc-800"
               >
-                검색
-              </button>
+                검??              </button>
             </div>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {metaLoading && (
               <div className="md:col-span-3 rounded-2xl border border-dashed border-zinc-300 bg-white/80 p-4 text-center text-sm text-zinc-500">
-                불러오는 중...
+                불러?�는 �?..
               </div>
             )}
             {metaError && (
               <div className="md:col-span-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center text-sm text-rose-700">
-                필터 목록 로딩 실패 · 새로고침 해주세요
+                ?�터 목록 로딩 ?�패 · ?�로고침 ?�주?�요
               </div>
             )}
             <FilterInput
-              label="기관"
+              label="기�?"
               value={state.org}
               onChange={(value) => updateField("org", value)}
-              placeholder="예: MO"
+              placeholder="?? MO"
             />
             <FilterInput
-              label="영역"
+              label="?�역"
               value={state.subject}
               onChange={(value) => updateField("subject", value)}
-              placeholder="예: MA"
+              placeholder="?? MA"
             />
             <FilterInput
-              label="연도"
+              label="?�도"
               value={state.year}
               onChange={(value) => updateField("year", value)}
               placeholder="2024"
             />
             <FilterInput
-              label="월"
+              label="??
               value={state.month}
               onChange={(value) => updateField("month", value)}
               placeholder="11"
@@ -277,23 +280,23 @@ export default function SearchPageClient() {
               placeholder="1"
             />
             <FilterInput
-              label="단원"
+              label="?�원"
               value={state.unit}
               onChange={(value) => updateField("unit", value)}
-              placeholder="수열"
+              placeholder="?�열"
             />
             <FilterInput
-              label="유형"
+              label="?�형"
               value={state.qtype}
               onChange={(value) => updateField("qtype", value)}
-              placeholder="객관식"
+              placeholder="객�???
             />
             <FilterSelect
-              label="기관(코드)"
+              label="기�?(코드)"
               value={state.org}
               onChange={(value) => updateField("org", value)}
               options={[
-                { value: "", label: "전체" },
+                { value: "", label: "?�체" },
                 ...orgOptions.map((org) => ({
                   value: org.code2,
                   label: `${org.code2} · ${org.name}`,
@@ -301,11 +304,11 @@ export default function SearchPageClient() {
               ]}
             />
             <FilterSelect
-              label="영역(코드)"
+              label="?�역(코드)"
               value={state.subject}
               onChange={(value) => updateField("subject", value)}
               options={[
-                { value: "", label: "전체" },
+                { value: "", label: "?�체" },
                 ...subjectOptions.map((subject) => ({
                   value: subject.code2,
                   label: `${subject.code2} · ${subject.name}`,
@@ -313,31 +316,31 @@ export default function SearchPageClient() {
               ]}
             />
             <FilterSelect
-              label="난이도(5)"
+              label="?�이??5)"
               value={state.difficulty_5}
               onChange={(value) => updateField("difficulty_5", value)}
               options={[
-                { value: "", label: "전체" },
-                { value: "매우 쉬움", label: "매우 쉬움" },
-                { value: "쉬움", label: "쉬움" },
+                { value: "", label: "?�체" },
+                { value: "매우 ?��?", label: "매우 ?��?" },
+                { value: "?��?", label: "?��?" },
                 { value: "보통", label: "보통" },
-                { value: "어려움(준킬러)", label: "어려움(준킬러)" },
-                { value: "매우 어려움(킬러)", label: "매우 어려움(킬러)" },
+                { value: "?�려?�(준?�러)", label: "?�려?�(준?�러)" },
+                { value: "매우 ?�려?�(?�러)", label: "매우 ?�려?�(?�러)" },
               ]}
             />
             <FilterSelect
-              label="킬러(3)"
+              label="?�러(3)"
               value={state.killer_3}
               onChange={(value) => updateField("killer_3", value)}
               options={[
-                { value: "", label: "전체" },
-                { value: "비킬러", label: "비킬러" },
-                { value: "준킬러", label: "준킬러" },
-                { value: "킬러", label: "킬러" },
+                { value: "", label: "?�체" },
+                { value: "비킬??, label: "비킬?? },
+                { value: "준?�러", label: "준?�러" },
+                { value: "?�러", label: "?�러" },
               ]}
             />
             <FilterInput
-              label="페이지 크기"
+              label="?�이지 ?�기"
               value={String(state.pageSize)}
               onChange={(value) => {
                 const num = Number(value);
@@ -351,7 +354,7 @@ export default function SearchPageClient() {
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="text-sm text-zinc-500">
-              페이지 {state.page} / {totalPages}
+              ?�이지 {state.page} / {totalPages}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -360,7 +363,7 @@ export default function SearchPageClient() {
                 disabled={state.page <= 1}
                 className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition hover:border-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                이전
+                ?�전
               </button>
               <button
                 type="button"
@@ -368,14 +371,14 @@ export default function SearchPageClient() {
                 disabled={state.page >= totalPages}
                 className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition hover:border-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                다음
+                ?�음
               </button>
             </div>
           </div>
 
           {loading && (
             <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/80 p-6 text-center text-sm text-zinc-500">
-              문항을 불러오는 중입니다.
+              문항??불러?�는 중입?�다.
             </div>
           )}
 
@@ -386,8 +389,22 @@ export default function SearchPageClient() {
           )}
 
           {!loading && !error && items.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/80 p-6 text-center text-sm text-zinc-500">
-              조건에 맞는 문항이 없습니다.
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/80 p-6 text-center text-sm text-zinc-600">
+              <div className="text-base font-semibold text-zinc-800">
+                ���� �����Ͱ� ���� ��� ����� ���� �� �־��.
+              </div>
+              <div className="mt-2 text-sm text-zinc-500">
+                ���� �˻���: ����, �̺�, Ȯ��
+              </div>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-700 transition hover:border-zinc-400"
+                >
+                  ����/�˻��� �ʱ�ȭ
+                </button>
+              </div>
             </div>
           )}
 
@@ -454,3 +471,4 @@ function FilterSelect({
     </label>
   );
 }
+

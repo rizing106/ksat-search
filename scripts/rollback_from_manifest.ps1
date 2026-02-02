@@ -1,22 +1,20 @@
 param(
   [Parameter(Mandatory = $true)]
-  [string]$Manifest,
+  [string]$ManifestPath,
 
-  [switch]$Confirm
+  [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
 
-if (-not (Test-Path -LiteralPath $Manifest)) {
-  throw "Manifest not found: $Manifest"
+function Print-Usage {
+  Write-Output "Usage:"
+  Write-Output "  .\\scripts\\rollback_from_manifest.ps1 -ManifestPath .\\logs\\manifest.json"
+  Write-Output "  .\\scripts\\rollback_from_manifest.ps1 -ManifestPath .\\logs\\manifest.json -Force"
 }
 
-$manifestJson = Get-Content -Raw -Path $Manifest | ConvertFrom-Json
-$publicQids = @($manifestJson.imported | Where-Object { $_ -and $_.ToString().Trim() -ne "" })
-
-if ($publicQids.Count -eq 0) {
-  Write-Output "would delete 0"
-  exit 0
+if (-not (Test-Path -LiteralPath $ManifestPath)) {
+  throw "Manifest not found: $ManifestPath"
 }
 
 $envFile = Join-Path -Path (Get-Location) -ChildPath ".env.local"
@@ -31,9 +29,7 @@ if (Test-Path -LiteralPath $envFile) {
     if ($value.StartsWith('"') -and $value.EndsWith('"')) {
       $value = $value.Substring(1, $value.Length - 2)
     }
-    if (-not [Environment]::GetEnvironmentVariable($key)) {
-      [Environment]::SetEnvironmentVariable($key, $value, "Process")
-    }
+    [Environment]::SetEnvironmentVariable($key, $value, "Process")
   }
 }
 
@@ -42,7 +38,28 @@ if (-not $baseUrl) { $baseUrl = $env:SUPABASE_URL }
 $serviceKey = $env:SUPABASE_SERVICE_ROLE_KEY
 
 if (-not $baseUrl) { throw "Missing SUPABASE_URL (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL)" }
-if (-not $serviceKey) { throw "Missing SUPABASE_SERVICE_ROLE_KEY" }
+if (-not $serviceKey) { throw "Missing SUPABASE_SERVICE_ROLE_KEY in .env.local" }
+
+$manifestJson = Get-Content -Raw -Path $ManifestPath | ConvertFrom-Json
+$publicQids = @()
+if ($null -ne $manifestJson.public_qids) {
+  $publicQids = @($manifestJson.public_qids)
+} elseif ($null -ne $manifestJson.imported) {
+  $publicQids = @($manifestJson.imported)
+}
+$publicQids = @($publicQids | Where-Object { $_ -and $_.ToString().Trim() -ne "" })
+
+Write-Output ("delete target count: {0}" -f $publicQids.Count)
+
+if ($publicQids.Count -eq 0) {
+  exit 0
+}
+
+if (-not $Force) {
+  Write-Output "Dry run only. Re-run with -Force to delete."
+  Print-Usage
+  exit 0
+}
 
 $headers = @{
   "apikey" = $serviceKey
@@ -98,11 +115,6 @@ function Delete-Questions([string[]]$qids) {
 $questions = Get-QuestionsByPublicQid $publicQids
 $foundQids = $questions | ForEach-Object { $_.public_qid }
 $questionIds = $questions | ForEach-Object { $_.id }
-
-if (-not $Confirm) {
-  Write-Output ("would delete {0}" -f $questionIds.Count)
-  exit 0
-}
 
 if ($questionIds.Count -gt 0) {
   Delete-QuestionTokens $questionIds
