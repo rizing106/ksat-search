@@ -43,10 +43,13 @@ export async function GET(request: Request) {
     let q: string | undefined;
     if (rawQ !== null) {
       const cleaned = sanitizeQuery(rawQ);
-      if (cleaned.length < 2) {
+      if (cleaned.length === 0) {
+        q = "";
+      } else if (cleaned.length < 2) {
         badRequest("Invalid q");
+      } else {
+        q = cleaned;
       }
-      q = cleaned;
     }
 
     const page = parseNumber(searchParams.get("page"), "page") ?? 1;
@@ -54,6 +57,16 @@ export async function GET(request: Request) {
     if (page < 1) badRequest("Invalid page");
     if (pageSize < 1) badRequest("Invalid pageSize");
     if (pageSize > 50) pageSize = 50;
+
+    // q가 없거나 빈 문자열이면 400이 아니라 200(빈 결과)로 처리
+    if (!q || q.trim() === "") {
+      return json({
+        items: [],
+        page,
+        pageSize,
+        total: 0,
+      });
+    }
 
     const filters: QuestionSearchFilters = {};
     const orgRaw = searchParams.get("org");

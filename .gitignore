@@ -43,3 +43,5 @@ next-env.d.ts
 /data/archive/*
 /logs/*
 !/logs/.gitkeep
+data/answer_rates/
+data/answer_rates/**
