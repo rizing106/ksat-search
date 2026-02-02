@@ -67,7 +67,7 @@ export async function proxy(request: NextRequest) {
     return redirectLogin(request, response, { error: "not_admin" });
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = { matcher: ["/admin/:path*"] };
